@@ -1,0 +1,22 @@
+@import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  font-family: 'Baloo 2', 'Comic Sans MS', ui-rounded, sans-serif;
+  background-color: #fffbeb;
+  background-image:
+    radial-gradient(circle at 10% 20%, rgba(236, 72, 153, 0.18) 0, transparent 45%),
+    radial-gradient(circle at 85% 15%, rgba(59, 130, 246, 0.18) 0, transparent 45%),
+    radial-gradient(circle at 20% 80%, rgba(16, 185, 129, 0.18) 0, transparent 45%),
+    radial-gradient(circle at 90% 85%, rgba(245, 158, 11, 0.18) 0, transparent 45%),
+    radial-gradient(circle at 50% 50%, rgba(168, 85, 247, 0.12) 0, transparent 55%);
+  background-attachment: fixed;
+  -webkit-tap-highlight-color: transparent;
+}

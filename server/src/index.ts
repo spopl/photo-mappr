@@ -1,0 +1,222 @@
+import express from 'express';
+import { createServer } from 'http';
+import { Server } from 'socket.io';
+import cors from 'cors';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import {
+  createRoom,
+  getRoom,
+  joinRoom,
+  setPhotoCount,
+  submitPhotos,
+  allPhotosSubmitted,
+  canStart,
+  startUploading,
+  startGuessing,
+  submitGuess,
+  allGuessed,
+  beginReveal,
+  stepReveal,
+  finishRoundGoNext,
+  removePlayer,
+  toPublicState,
+  deleteRoom,
+  config,
+} from './rooms.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+const app = express();
+app.use(cors());
+app.use(express.json({ limit: '20mb' }));
+
+const httpServer = createServer(app);
+const io = new Server(httpServer, {
+  cors: { origin: '*' },
+  maxHttpBufferSize: 20 * 1024 * 1024, // allow base64 photo payloads
+});
+
+const clientDist = path.join(__dirname, '..', '..', 'client', 'dist');
+app.use(express.static(clientDist));
+
+app.get('/api/config', (_req, res) => {
+  res.json(config);
+});
+
+function broadcastRoom(code: string) {
+  const room = getRoom(code);
+  if (!room) return;
+  for (const id of room.playerOrder) {
+    io.to(id).emit('room:state', toPublicState(room, id));
+  }
+  // also emit to sockets in the room channel (for spectators mid-transition)
+  io.to(`room:${code}`).emit('room:state', toPublicState(room));
+}
+
+// Reveal step auto-advance timers per room code
+const revealTimers = new Map<string, NodeJS.Timeout>();
+const guessTimers = new Map<string, NodeJS.Timeout>();
+
+function clearRoomTimers(code: string) {
+  const rt = revealTimers.get(code);
+  if (rt) clearTimeout(rt);
+  revealTimers.delete(code);
+  const gt = guessTimers.get(code);
+  if (gt) clearTimeout(gt);
+  guessTimers.delete(code);
+}
+
+function scheduleGuessTimeout(code: string) {
+  clearRoomTimers(code);
+  const t = setTimeout(() => {
+    const room = getRoom(code);
+    if (!room || room.phase !== 'guessing') return;
+    startReveal(code, room);
+  }, config.GUESS_TIMER_SECONDS * 1000);
+  guessTimers.set(code, t);
+}
+
+/** Begin the reveal phase. If there's nothing suspenseful to show (0 or 1 items to reveal), resolve instantly. */
+function startReveal(code: string, room: import('./types.js').RoomState) {
+  beginReveal(room);
+  broadcastRoom(code);
+  const round = room.currentRound;
+  if (round && round.revealOrder.length - round.revealIndex <= 1) {
+    const done = stepReveal(room);
+    broadcastRoom(code);
+    if (done) scheduleNextRoundAfterPause(code);
+    return;
+  }
+  scheduleRevealStep(code);
+}
+
+function scheduleNextRoundAfterPause(code: string) {
+  const t2 = setTimeout(() => {
+    const r2 = getRoom(code);
+    if (!r2) return;
+    finishRoundGoNext(r2);
+    broadcastRoom(code);
+    if (r2.phase === 'guessing') {
+      scheduleGuessTimeout(code);
+    }
+  }, 3000);
+  revealTimers.set(code, t2);
+}
+
+function scheduleRevealStep(code: string) {
+  const t = setTimeout(() => {
+    const room = getRoom(code);
+    if (!room || room.phase !== 'reveal') return;
+    const done = stepReveal(room);
+    broadcastRoom(code);
+    if (done) {
+      // wait a bit then advance to next round or finish
+      scheduleNextRoundAfterPause(code);
+    } else {
+      scheduleRevealStep(code);
+    }
+  }, config.REVEAL_STEP_SECONDS * 1000);
+  revealTimers.set(code, t);
+}
+
+const socketRoomMap = new Map<string, string>();
+
+io.on('connection', (socket) => {
+  socket.on('room:create', ({ name, photoCount }, cb) => {
+    const room = createRoom(name, socket.id, photoCount || 2);
+    socket.join(room.code);
+    socket.join(`room:${room.code}`);
+    socketRoomMap.set(socket.id, room.code);
+    cb?.({ ok: true, code: room.code, playerId: socket.id });
+    broadcastRoom(room.code);
+  });
+
+  socket.on('room:join', ({ code, name }, cb) => {
+    const { room, error } = joinRoom(code, socket.id, name);
+    if (error || !room) {
+      cb?.({ ok: false, error });
+      return;
+    }
+    socket.join(room.code);
+    socket.join(`room:${room.code}`);
+    socketRoomMap.set(socket.id, room.code);
+    cb?.({ ok: true, code: room.code, playerId: socket.id });
+    broadcastRoom(room.code);
+  });
+
+  socket.on('room:setPhotoCount', ({ code, count }) => {
+    const room = getRoom(code);
+    if (!room || room.hostId !== socket.id) return;
+    setPhotoCount(room, count);
+    broadcastRoom(code);
+  });
+
+  socket.on('room:startUpload', ({ code }) => {
+    const room = getRoom(code);
+    if (!room || room.hostId !== socket.id) return;
+    if (!canStart(room)) return;
+    startUploading(room);
+    broadcastRoom(code);
+  });
+
+  socket.on('room:submitPhotos', ({ code, photos }) => {
+    const room = getRoom(code);
+    if (!room) return;
+    submitPhotos(room, socket.id, photos);
+    if (room.phase === 'uploading' && allPhotosSubmitted(room)) {
+      startGuessing(room);
+      broadcastRoom(code);
+      scheduleGuessTimeout(code);
+      return;
+    }
+    broadcastRoom(code);
+  });
+
+  socket.on('room:guess', ({ code, guessedPlayerId }) => {
+    const room = getRoom(code);
+    if (!room || room.phase !== 'guessing') return;
+    submitGuess(room, socket.id, guessedPlayerId);
+    if (allGuessed(room)) {
+      clearRoomTimers(code);
+      startReveal(code, room);
+    } else {
+      broadcastRoom(code);
+    }
+  });
+
+  socket.on('room:leave', ({ code }) => {
+    handleLeave(code, socket.id);
+  });
+
+  socket.on('disconnect', () => {
+    const code = socketRoomMap.get(socket.id);
+    if (code) {
+      handleLeave(code, socket.id);
+      socketRoomMap.delete(socket.id);
+    }
+  });
+
+  function handleLeave(code: string, playerId: string) {
+    const room = getRoom(code);
+    if (!room) return;
+    removePlayer(room, playerId);
+    if (room.playerOrder.length === 0) {
+      clearRoomTimers(code);
+      deleteRoom(code);
+      return;
+    }
+    broadcastRoom(code);
+  }
+});
+
+const PORT = process.env.PORT || 3001;
+httpServer.listen(PORT, () => {
+  console.log(`Face Mappr server running on port ${PORT}`);
+});
+
+// SPA fallback
+app.get('*', (_req, res) => {
+  res.sendFile(path.join(clientDist, 'index.html'));
+});
+
