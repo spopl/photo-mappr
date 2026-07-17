@@ -9,6 +9,7 @@ import {
   getRoom,
   joinRoom,
   setPhotoCount,
+  setCategory,
   submitPhotos,
   allPhotosSubmitted,
   canStart,
@@ -109,8 +110,8 @@ function scheduleRevealStep(code: string) {
 const socketRoomMap = new Map<string, string>();
 
 io.on('connection', (socket) => {
-  socket.on('room:create', ({ name, photoCount }, cb) => {
-    const room = createRoom(name, socket.id, photoCount || 2);
+  socket.on('room:create', ({ name, photoCount, categoryId }, cb) => {
+    const room = createRoom(name, socket.id, photoCount || 2, categoryId);
     socket.join(room.code);
     socket.join(`room:${room.code}`);
     socketRoomMap.set(socket.id, room.code);
@@ -135,6 +136,13 @@ io.on('connection', (socket) => {
     const room = getRoom(code);
     if (!room || room.hostId !== socket.id) return;
     setPhotoCount(room, count);
+    broadcastRoom(code);
+  });
+
+  socket.on('room:setCategory', ({ code, categoryId }) => {
+    const room = getRoom(code);
+    if (!room || room.hostId !== socket.id) return;
+    setCategory(room, categoryId);
     broadcastRoom(code);
   });
 
@@ -212,7 +220,7 @@ io.on('connection', (socket) => {
 
 const PORT = process.env.PORT || 3001;
 httpServer.listen(PORT, () => {
-  console.log(`Face Mappr server running on port ${PORT}`);
+  console.log(`Photo Mappr server running on port ${PORT}`);
 });
 
 // SPA fallback

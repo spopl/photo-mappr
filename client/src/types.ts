@@ -36,6 +36,7 @@ export interface RoomPublicState {
   code: string;
   hostId: string;
   photoCountRequired: number;
+  categoryId: string;
   phase: GamePhase;
   players: PlayerPublic[];
   currentRound: CurrentRound | null;

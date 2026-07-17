@@ -1,5 +1,6 @@
 import type { RoomPublicState } from '../types';
 import { socket } from '../socket';
+import { getCategory } from '../categories';
 
 interface Props {
   room: RoomPublicState;
@@ -8,6 +9,7 @@ interface Props {
 
 export default function Lobby({ room, isHost }: Props) {
   const shareUrl = `${window.location.origin}${window.location.pathname}?room=${room.code}`;
+  const category = getCategory(room.categoryId);
 
   function startUpload() {
     socket.emit('room:startUpload', { code: room.code });
@@ -49,7 +51,10 @@ export default function Lobby({ room, isHost }: Props) {
 
       <div className="bg-white rounded-2xl shadow p-4 mb-4 text-center">
         <p className="text-sm text-brand-700">
-          Everyone will upload <b>{room.photoCountRequired}</b> baby photo(s).
+          Topic: <b>{category.emoji} {category.label}</b>
+        </p>
+        <p className="text-sm text-brand-700 mt-1">
+          Everyone will upload <b>{room.photoCountRequired}</b> photo(s): {category.prompt}
         </p>
       </div>
 

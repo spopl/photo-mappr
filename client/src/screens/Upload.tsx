@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { socket } from '../socket';
 import type { PlayerPublic, RoomPublicState } from '../types';
+import { getCategory } from '../categories';
 
 interface Props {
   room: RoomPublicState;
@@ -78,12 +79,15 @@ export default function Upload({ room, me }: Props) {
   const others = room.players.filter((p) => p.connected);
   const doneCount = others.filter((p) => p.photoCount >= required).length;
 
+  const category = getCategory(room.categoryId);
+
   return (
     <div className="min-h-screen px-4 py-8 max-w-md mx-auto">
       <h1 className="text-2xl font-extrabold text-brand-700 text-center mb-1">
-        Upload {required} Baby Photo{required > 1 ? 's' : ''}
+        Upload {required} Photo{required > 1 ? 's' : ''} {category.emoji}
       </h1>
-      <p className="text-center text-brand-600 mb-6">Ages 0–4. JPG, PNG, WEBP, or HEIC. Max 5MB each.</p>
+      <p className="text-center text-brand-700 font-medium mb-1">{category.prompt}</p>
+      <p className="text-center text-brand-600 mb-6 text-sm">JPG, PNG, WEBP, or HEIC. Max 5MB each.</p>
 
       {error && <div className="bg-red-100 text-red-700 text-sm rounded-lg px-3 py-2 mb-4">{error}</div>}
 

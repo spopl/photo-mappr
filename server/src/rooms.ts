@@ -1,5 +1,6 @@
 import { customAlphabet } from 'nanoid';
 import type { RoomState, Player, RoundState, RoomPublicState } from './types.js';
+import { DEFAULT_CATEGORY_ID } from './categories.js';
 
 const genCode = customAlphabet('ABCDEFGHJKLMNPQRSTUVWXYZ23456789', 5);
 
@@ -20,7 +21,12 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
-export function createRoom(hostName: string, hostId: string, photoCountRequired: number): RoomState {
+export function createRoom(
+  hostName: string,
+  hostId: string,
+  photoCountRequired: number,
+  categoryId: string = DEFAULT_CATEGORY_ID
+): RoomState {
   let code = genCode();
   while (rooms.has(code)) code = genCode();
 
@@ -28,6 +34,7 @@ export function createRoom(hostName: string, hostId: string, photoCountRequired:
     code,
     hostId,
     photoCountRequired,
+    categoryId,
     phase: 'lobby',
     players: {
       [hostId]: { id: hostId, name: hostName, connected: true, photos: [] },
@@ -72,6 +79,12 @@ export function joinRoom(code: string, playerId: string, name: string): { room?:
 export function setPhotoCount(room: RoomState, count: number) {
   if (room.phase === 'lobby') {
     room.photoCountRequired = Math.min(3, Math.max(1, count));
+  }
+}
+
+export function setCategory(room: RoomState, categoryId: string) {
+  if (room.phase === 'lobby') {
+    room.categoryId = categoryId;
   }
 }
 
@@ -329,6 +342,7 @@ export function toPublicState(room: RoomState, viewerId?: string): RoomPublicSta
     code: room.code,
     hostId: room.hostId,
     photoCountRequired: room.photoCountRequired,
+    categoryId: room.categoryId,
     phase: room.phase,
     players,
     currentRound,

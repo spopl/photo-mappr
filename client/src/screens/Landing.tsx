@@ -1,8 +1,9 @@
 import { useState } from 'react';
+import { CATEGORIES, DEFAULT_CATEGORY_ID } from '../categories';
 
 interface Props {
   prefillCode: string | null;
-  onCreate: (name: string, photoCount: number) => void;
+  onCreate: (name: string, photoCount: number, categoryId: string) => void;
   onJoin: (code: string, name: string) => void;
   error: string | null;
 }
@@ -12,14 +13,15 @@ export default function Landing({ prefillCode, onCreate, onJoin, error }: Props)
   const [name, setName] = useState('');
   const [code, setCode] = useState(prefillCode || '');
   const [photoCount, setPhotoCount] = useState(2);
+  const [categoryId, setCategoryId] = useState(DEFAULT_CATEGORY_ID);
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-4 py-8">
       <div className="w-full max-w-sm">
         <h1 className="text-4xl font-extrabold text-center mb-1 bg-gradient-to-r from-party-pink via-party-purple to-party-blue bg-clip-text text-transparent">
-          👶 Face Mappr
+          � Photo Mappr
         </h1>
-        <p className="text-center text-brand-600 mb-6 font-medium">Guess who's who in baby photos!</p>
+        <p className="text-center text-brand-600 mb-6 font-medium">Guess who's who from a fun photo prompt!</p>
 
         {error && (
           <div className="bg-red-100 text-red-700 text-sm rounded-lg px-3 py-2 mb-4">{error}</div>
@@ -52,6 +54,23 @@ export default function Landing({ prefillCode, onCreate, onJoin, error }: Props)
               placeholder="e.g. Alex"
               maxLength={20}
             />
+            <label className="text-sm font-medium text-brand-700">Photo topic</label>
+            <div className="grid grid-cols-2 gap-2">
+              {CATEGORIES.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => setCategoryId(c.id)}
+                  className={`rounded-lg py-2 px-2 text-sm font-semibold border-2 flex flex-col items-center gap-0.5 ${
+                    categoryId === c.id
+                      ? 'bg-brand-600 text-white border-brand-600'
+                      : 'border-brand-200 text-brand-700'
+                  }`}
+                >
+                  <span className="text-lg">{c.emoji}</span>
+                  {c.label}
+                </button>
+              ))}
+            </div>
             <label className="text-sm font-medium text-brand-700">Photos per player</label>
             <div className="flex gap-2">
               {[1, 2, 3].map((n) => (
@@ -71,7 +90,7 @@ export default function Landing({ prefillCode, onCreate, onJoin, error }: Props)
             <button
               disabled={!name.trim()}
               className="mt-2 bg-brand-600 disabled:opacity-40 text-white font-semibold rounded-xl py-3"
-              onClick={() => onCreate(name.trim(), photoCount)}
+              onClick={() => onCreate(name.trim(), photoCount, categoryId)}
             >
               Create Room
             </button>

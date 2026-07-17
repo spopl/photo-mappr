@@ -38,9 +38,9 @@ export default function App() {
     };
   }, []);
 
-  function createRoom(name: string, photoCount: number) {
+  function createRoom(name: string, photoCount: number, categoryId: string) {
     setError(null);
-    socket.emit('room:create', { name, photoCount }, (res: any) => {
+    socket.emit('room:create', { name, photoCount, categoryId }, (res: any) => {
       if (!res?.ok) {
         setError(res?.error || 'Failed to create room');
         return;

@@ -35,6 +35,7 @@ export interface RoomState {
   code: string;
   hostId: string;
   photoCountRequired: number;
+  categoryId: string;
   phase: GamePhase;
   players: Record<string, Player>;
   playerOrder: string[];
@@ -49,6 +50,7 @@ export interface RoomPublicState {
   code: string;
   hostId: string;
   photoCountRequired: number;
+  categoryId: string;
   phase: GamePhase;
   players: PlayerPublic[];
   currentRound: {
