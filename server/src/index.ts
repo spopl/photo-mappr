@@ -83,25 +83,11 @@ function startReveal(code: string, room: import('./types.js').RoomState) {
   broadcastRoom(code);
   const round = room.currentRound;
   if (round && round.revealOrder.length - round.revealIndex <= 1) {
-    const done = stepReveal(room);
+    stepReveal(room);
     broadcastRoom(code);
-    if (done) scheduleNextRoundAfterPause(code);
     return;
   }
   scheduleRevealStep(code);
-}
-
-function scheduleNextRoundAfterPause(code: string) {
-  const t2 = setTimeout(() => {
-    const r2 = getRoom(code);
-    if (!r2) return;
-    finishRoundGoNext(r2);
-    broadcastRoom(code);
-    if (r2.phase === 'guessing') {
-      scheduleGuessTimeout(code);
-    }
-  }, 3000);
-  revealTimers.set(code, t2);
 }
 
 function scheduleRevealStep(code: string) {
@@ -110,15 +96,15 @@ function scheduleRevealStep(code: string) {
     if (!room || room.phase !== 'reveal') return;
     const done = stepReveal(room);
     broadcastRoom(code);
-    if (done) {
-      // wait a bit then advance to next round or finish
-      scheduleNextRoundAfterPause(code);
-    } else {
+    if (!done) {
       scheduleRevealStep(code);
     }
+    // When done, we now wait for the host to explicitly click "Next Round" (room:nextRound)
+    // instead of auto-advancing, so players have a moment to chat/react.
   }, config.REVEAL_STEP_SECONDS * 1000);
   revealTimers.set(code, t);
 }
+
 
 const socketRoomMap = new Map<string, string>();
 
@@ -183,6 +169,20 @@ io.on('connection', (socket) => {
     } else {
       broadcastRoom(code);
     }
+  });
+
+  socket.on('room:nextRound', ({ code }) => {
+    const room = getRoom(code);
+    if (!room || room.hostId !== socket.id || room.phase !== 'reveal') return;
+    const round = room.currentRound;
+    const isFinishedReveal =
+      round && round.revealOrder[round.revealIndex - 1] === round.subjectPlayerId;
+    if (!isFinishedReveal) return;
+    clearRoomTimers(code);
+    finishRoundGoNext(room);
+    broadcastRoom(code);
+    const updated = getRoom(code);
+    if (updated?.phase === 'guessing') scheduleGuessTimeout(code);
   });
 
   socket.on('room:leave', ({ code }) => {

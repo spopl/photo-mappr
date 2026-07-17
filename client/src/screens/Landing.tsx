@@ -111,6 +111,11 @@ export default function Landing({ prefillCode, onCreate, onJoin, error }: Props)
             </button>
           </div>
         )}
+
+        <p className="text-center text-xs text-brand-400 mt-6 px-4">
+          🔒 Photos are only held in memory during the game and are deleted right after they're
+          revealed (or when the game ends). Please don't upload anything sensitive.
+        </p>
       </div>
     </div>
   );

@@ -92,6 +92,10 @@ export function canStart(room: RoomState): boolean {
 }
 
 export function startUploading(room: RoomState) {
+  // Clear any leftover photos from a previous game before starting a new one.
+  for (const id of room.playerOrder) {
+    room.players[id].photos = [];
+  }
   room.phase = 'uploading';
 }
 
@@ -107,6 +111,10 @@ function advanceRound(room: RoomState) {
   if (!nextId) {
     room.phase = 'finished';
     room.currentRound = null;
+    // Safety net: ensure no photos linger in memory once the game is over.
+    for (const id of room.playerOrder) {
+      room.players[id].photos = [];
+    }
     return;
   }
   room.currentRound = {
@@ -150,16 +158,27 @@ export function beginReveal(room: RoomState) {
   for (const guessedId of Object.values(round.guesses)) {
     voteCounts.set(guessedId, (voteCounts.get(guessedId) || 0) + 1);
   }
-  const candidatesWithVotes = shuffle([...voteCounts.keys()].filter((id) => id !== round.subjectPlayerId));
+  // Include the subject as a "candidate" if people actually guessed them correctly,
+  // so their row shows up with a checkmark in the UI.
+  const candidatesWithVotes = shuffle([...voteCounts.keys()]);
   round.candidatesWithVotes = candidatesWithVotes;
 
-  const wrongCount = Math.min(MAX_WRONG_REVEALS, candidatesWithVotes.length);
-  const chosenWrong = candidatesWithVotes.slice(0, wrongCount);
+  const subjectHasVotes = voteCounts.has(round.subjectPlayerId);
+  const wrongCandidates = candidatesWithVotes.filter((id) => id !== round.subjectPlayerId);
+  const wrongCount = Math.min(MAX_WRONG_REVEALS, wrongCandidates.length);
+  const chosenWrong = wrongCandidates.slice(0, wrongCount);
 
-  // Randomly decide insertion point for the correct answer among the wrongs (could be position 0 = shown first)
-  const insertAt = Math.floor(Math.random() * (chosenWrong.length + 1));
-  const order = [...chosenWrong];
-  order.splice(insertAt, 0, round.subjectPlayerId);
+  let order: string[];
+  if (subjectHasVotes) {
+    // Randomly decide insertion point for the correct answer among the wrongs
+    // (could be position 0 = shown first, for suspense).
+    const insertAt = Math.floor(Math.random() * (chosenWrong.length + 1));
+    order = [...chosenWrong];
+    order.splice(insertAt, 0, round.subjectPlayerId);
+  } else {
+    // Nobody guessed correctly — reveal the wrong guesses, then the truth at the end.
+    order = [...chosenWrong, round.subjectPlayerId];
+  }
 
   // Anything scheduled after the correct answer's position would never actually be shown
   // (the round ends as soon as the correct answer appears), so trim it off.
@@ -208,6 +227,11 @@ export function stepReveal(room: RoomState): boolean {
 }
 
 export function finishRoundGoNext(room: RoomState) {
+  // Privacy: wipe the photo(s) that were just shown — no longer needed once revealed.
+  const finishedSubjectId = room.currentRound?.subjectPlayerId;
+  if (finishedSubjectId && room.players[finishedSubjectId]) {
+    room.players[finishedSubjectId].photos = [];
+  }
   advanceRound(room);
 }
 

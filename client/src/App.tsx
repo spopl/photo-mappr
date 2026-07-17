@@ -96,7 +96,7 @@ export default function App() {
     case 'guessing':
       return <Guessing room={room} myId={myId} />;
     case 'reveal':
-      return <Reveal room={room} />;
+      return <Reveal room={room} isHost={isHost} />;
     case 'finished':
       return <Finished room={room} />;
     default:
