@@ -114,14 +114,21 @@ export function startUploading(room: RoomState) {
 
 export function startGuessing(room: RoomState) {
   room.phase = 'guessing';
-  room.roundQueue = shuffle(room.playerOrder.filter((id) => room.players[id].connected));
+  const entries: { playerId: string; photoIndex: number }[] = [];
+  for (const id of room.playerOrder) {
+    if (!room.players[id].connected) continue;
+    for (let i = 0; i < room.players[id].photos.length; i++) {
+      entries.push({ playerId: id, photoIndex: i });
+    }
+  }
+  room.roundQueue = shuffle(entries);
   room.completedRounds = [];
   advanceRound(room);
 }
 
 function advanceRound(room: RoomState) {
-  const nextId = room.roundQueue.shift();
-  if (!nextId) {
+  const next = room.roundQueue.shift();
+  if (!next) {
     room.phase = 'finished';
     room.currentRound = null;
     // Safety net: ensure no photos linger in memory once the game is over.
@@ -130,9 +137,10 @@ function advanceRound(room: RoomState) {
     }
     return;
   }
+  const photo = room.players[next.playerId]?.photos[next.photoIndex];
   room.currentRound = {
-    subjectPlayerId: nextId,
-    photos: room.players[nextId].photos,
+    subjectPlayerId: next.playerId,
+    photos: photo ? [photo] : [],
     guesses: {},
     lockedGuessers: [],
     revealOrder: [],
@@ -240,10 +248,12 @@ export function stepReveal(room: RoomState): boolean {
 }
 
 export function finishRoundGoNext(room: RoomState) {
-  // Privacy: wipe the photo(s) that were just shown — no longer needed once revealed.
-  const finishedSubjectId = room.currentRound?.subjectPlayerId;
-  if (finishedSubjectId && room.players[finishedSubjectId]) {
-    room.players[finishedSubjectId].photos = [];
+  // Privacy: wipe just the photo that was shown — no longer needed once revealed.
+  const round = room.currentRound;
+  const shownPhoto = round?.photos[0];
+  const subjectId = round?.subjectPlayerId;
+  if (subjectId && shownPhoto && room.players[subjectId]) {
+    room.players[subjectId].photos = room.players[subjectId].photos.filter((p) => p !== shownPhoto);
   }
   advanceRound(room);
 }
@@ -266,7 +276,7 @@ export function removePlayer(room: RoomState, playerId: string) {
     if (room.phase !== 'finished') advanceRound(room);
   }
   // Remove any pending queue entries / guesses referencing them
-  room.roundQueue = room.roundQueue.filter((id) => id !== playerId);
+  room.roundQueue = room.roundQueue.filter((e) => e.playerId !== playerId);
   if (room.currentRound) {
     delete room.currentRound.guesses[playerId];
     room.currentRound.lockedGuessers = room.currentRound.lockedGuessers.filter((id) => id !== playerId);
@@ -287,7 +297,7 @@ export function toPublicState(room: RoomState, viewerId?: string): RoomPublicSta
   if (round) {
     const subject = room.players[round.subjectPlayerId];
     const candidates = room.playerOrder
-      .filter((id) => id !== round.subjectPlayerId && room.players[id].connected)
+      .filter((id) => room.players[id].connected)
       .map((id) => ({ id, name: room.players[id].name }));
 
     const elapsed = round.revealStartedAt ? (Date.now() - round.revealStartedAt) / 1000 : 0;

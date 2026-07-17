@@ -40,7 +40,7 @@ export interface RoomState {
   players: Record<string, Player>;
   playerOrder: string[];
   scores: Record<string, number>;
-  roundQueue: string[]; // playerIds still to be shown, in random order
+  roundQueue: { playerId: string; photoIndex: number }[]; // individual photos still to be shown, in random order
   currentRound: RoundState | null;
   completedRounds: string[];
   createdAt: number;
