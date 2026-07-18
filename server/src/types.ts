@@ -58,7 +58,6 @@ export interface RoomPublicState {
     subjectName: string;
     photos: string[];
     candidates: { id: string; name: string }[];
-    timerSeconds: number;
     lockedGuesserIds: string[];
     reveal?: {
       candidatesWithVotes: { id: string; name: string; voterNames: string[] }[];

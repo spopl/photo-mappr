@@ -12,17 +12,10 @@ export default function Guessing({ room, myId }: Props) {
   const round = room.currentRound!;
   const [selected, setSelected] = useState<string | null>(null);
   const [locked, setLocked] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(round.timerSeconds);
 
   useEffect(() => {
     setSelected(null);
     setLocked(round.lockedGuesserIds.includes(myId || ''));
-    setTimeLeft(round.timerSeconds);
-  }, [round.subjectPlayerId]);
-
-  useEffect(() => {
-    const t = setInterval(() => setTimeLeft((s) => Math.max(0, s - 1)), 1000);
-    return () => clearInterval(t);
   }, [round.subjectPlayerId]);
 
   const isSubject = myId === round.subjectPlayerId;
@@ -34,12 +27,13 @@ export default function Guessing({ room, myId }: Props) {
     setLocked(true);
   }
 
+  const others = room.players.filter((p) => p.connected && p.id !== round.subjectPlayerId);
+
   return (
     <div className="min-h-screen px-4 py-8 max-w-md mx-auto">
       <div className="text-center mb-4">
         <div className="text-sm text-brand-500">Round</div>
-        <div className="text-2xl font-extrabold text-brand-700">Whose baby photo is this?</div>
-        <div className="mt-1 text-brand-600 font-semibold">⏱ {timeLeft}s</div>
+        <div className="text-2xl font-extrabold text-brand-700">Whose photo is this?</div>
       </div>
 
       <PhotoCarousel photos={round.photos} />
@@ -78,6 +72,19 @@ export default function Guessing({ room, myId }: Props) {
           </button>
         </div>
       )}
+
+      <div className="bg-white rounded-2xl shadow p-4 mt-4">
+        <h2 className="font-semibold text-brand-700 mb-2">Guess status</h2>
+        <ul>
+          {others.map((p) => (
+            <li key={p.id} className="flex justify-between py-1 border-b last:border-0">
+              <span>{p.name}</span>
+              <span>{round.lockedGuesserIds.includes(p.id) ? '✅' : '⏳'}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
     </div>
   );
 }
+

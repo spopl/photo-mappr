@@ -55,29 +55,6 @@ function broadcastRoom(code: string) {
   io.to(`room:${code}`).emit('room:state', toPublicState(room));
 }
 
-// Reveal step auto-advance timers per room code
-const revealTimers = new Map<string, NodeJS.Timeout>();
-const guessTimers = new Map<string, NodeJS.Timeout>();
-
-function clearRoomTimers(code: string) {
-  const rt = revealTimers.get(code);
-  if (rt) clearTimeout(rt);
-  revealTimers.delete(code);
-  const gt = guessTimers.get(code);
-  if (gt) clearTimeout(gt);
-  guessTimers.delete(code);
-}
-
-function scheduleGuessTimeout(code: string) {
-  clearRoomTimers(code);
-  const t = setTimeout(() => {
-    const room = getRoom(code);
-    if (!room || room.phase !== 'guessing') return;
-    startReveal(code, room);
-  }, config.GUESS_TIMER_SECONDS * 1000);
-  guessTimers.set(code, t);
-}
-
 /** Begin the reveal phase. If there's nothing suspenseful to show (0 or 1 items to reveal), resolve instantly. */
 function startReveal(code: string, room: import('./types.js').RoomState) {
   beginReveal(room);
@@ -86,24 +63,7 @@ function startReveal(code: string, room: import('./types.js').RoomState) {
   if (round && round.revealOrder.length - round.revealIndex <= 1) {
     stepReveal(room);
     broadcastRoom(code);
-    return;
   }
-  scheduleRevealStep(code);
-}
-
-function scheduleRevealStep(code: string) {
-  const t = setTimeout(() => {
-    const room = getRoom(code);
-    if (!room || room.phase !== 'reveal') return;
-    const done = stepReveal(room);
-    broadcastRoom(code);
-    if (!done) {
-      scheduleRevealStep(code);
-    }
-    // When done, we now wait for the host to explicitly click "Next Round" (room:nextRound)
-    // instead of auto-advancing, so players have a moment to chat/react.
-  }, config.REVEAL_STEP_SECONDS * 1000);
-  revealTimers.set(code, t);
 }
 
 
@@ -161,7 +121,6 @@ io.on('connection', (socket) => {
     if (room.phase === 'uploading' && allPhotosSubmitted(room)) {
       startGuessing(room);
       broadcastRoom(code);
-      scheduleGuessTimeout(code);
       return;
     }
     broadcastRoom(code);
@@ -172,11 +131,21 @@ io.on('connection', (socket) => {
     if (!room || room.phase !== 'guessing') return;
     submitGuess(room, socket.id, guessedPlayerId);
     if (allGuessed(room)) {
-      clearRoomTimers(code);
       startReveal(code, room);
     } else {
       broadcastRoom(code);
     }
+  });
+
+  socket.on('room:revealNext', ({ code }) => {
+    const room = getRoom(code);
+    if (!room || room.hostId !== socket.id || room.phase !== 'reveal') return;
+    const round = room.currentRound;
+    const isFinishedReveal =
+      round && round.revealOrder[round.revealIndex - 1] === round.subjectPlayerId;
+    if (!round || isFinishedReveal) return;
+    stepReveal(room);
+    broadcastRoom(code);
   });
 
   socket.on('room:nextRound', ({ code }) => {
@@ -186,11 +155,8 @@ io.on('connection', (socket) => {
     const isFinishedReveal =
       round && round.revealOrder[round.revealIndex - 1] === round.subjectPlayerId;
     if (!isFinishedReveal) return;
-    clearRoomTimers(code);
     finishRoundGoNext(room);
     broadcastRoom(code);
-    const updated = getRoom(code);
-    if (updated?.phase === 'guessing') scheduleGuessTimeout(code);
   });
 
   socket.on('room:leave', ({ code }) => {
@@ -210,7 +176,6 @@ io.on('connection', (socket) => {
     if (!room) return;
     removePlayer(room, playerId);
     if (room.playerOrder.length === 0) {
-      clearRoomTimers(code);
       deleteRoom(code);
       return;
     }

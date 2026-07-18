@@ -23,7 +23,6 @@ export interface CurrentRound {
   subjectName: string;
   photos: string[];
   candidates: { id: string; name: string }[];
-  timerSeconds: number;
   lockedGuesserIds: string[];
   reveal?: {
     candidatesWithVotes: RevealCandidate[];

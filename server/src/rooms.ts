@@ -8,8 +8,6 @@ const rooms = new Map<string, RoomState>();
 
 const MIN_PLAYERS = 4;
 const MAX_PLAYERS = 20;
-const GUESS_TIMER_SECONDS = 20;
-const REVEAL_STEP_SECONDS = 10;
 const MAX_WRONG_REVEALS = 3;
 
 function shuffle<T>(arr: T[]): T[] {
@@ -300,12 +298,6 @@ export function toPublicState(room: RoomState, viewerId?: string): RoomPublicSta
       .filter((id) => room.players[id].connected)
       .map((id) => ({ id, name: room.players[id].name }));
 
-    const elapsed = round.revealStartedAt ? (Date.now() - round.revealStartedAt) / 1000 : 0;
-    const timerSeconds =
-      room.phase === 'guessing'
-        ? Math.max(0, GUESS_TIMER_SECONDS)
-        : Math.max(0, REVEAL_STEP_SECONDS);
-
     let reveal:
       | {
           candidatesWithVotes: { id: string; name: string; voterNames: string[] }[];
@@ -342,7 +334,6 @@ export function toPublicState(room: RoomState, viewerId?: string): RoomPublicSta
       subjectName: subject.name,
       photos: round.photos,
       candidates,
-      timerSeconds,
       lockedGuesserIds: round.lockedGuessers,
       reveal,
     };
@@ -370,7 +361,5 @@ export function toPublicState(room: RoomState, viewerId?: string): RoomPublicSta
 export const config = {
   MIN_PLAYERS,
   MAX_PLAYERS,
-  GUESS_TIMER_SECONDS,
-  REVEAL_STEP_SECONDS,
   MAX_WRONG_REVEALS,
 };

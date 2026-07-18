@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import type { RoomPublicState } from '../types';
 import PhotoCarousel from '../components/PhotoCarousel';
 import { burstConfetti } from '../lib/confetti';
@@ -12,18 +12,7 @@ interface Props {
 export default function Reveal({ room, isHost }: Props) {
   const round = room.currentRound!;
   const reveal = round.reveal;
-  const [timeLeft, setTimeLeft] = useState(round.timerSeconds);
   const celebratedRef = useRef(false);
-
-  useEffect(() => {
-    setTimeLeft(round.timerSeconds);
-  }, [reveal?.revealed.length, round.subjectPlayerId]);
-
-  useEffect(() => {
-    if (reveal?.finished) return;
-    const t = setInterval(() => setTimeLeft((s) => Math.max(0, s - 1)), 1000);
-    return () => clearInterval(t);
-  }, [reveal?.revealed.length, round.subjectPlayerId, reveal?.finished]);
 
   useEffect(() => {
     celebratedRef.current = false;
@@ -47,14 +36,15 @@ export default function Reveal({ room, isHost }: Props) {
     socket.emit('room:nextRound', { code: room.code });
   }
 
+  function revealNext() {
+    socket.emit('room:revealNext', { code: room.code });
+  }
+
   return (
     <div className="min-h-screen px-4 py-8 max-w-md mx-auto">
       <div className="text-center mb-4">
         <div className="text-sm text-party-purple font-semibold">Reveal</div>
-        <div className="text-2xl font-extrabold text-brand-700">Whose baby photo is this?</div>
-        {!reveal.finished && (
-          <div className="mt-1 text-party-orange font-bold">⏱ Next reveal in {timeLeft}s</div>
-        )}
+        <div className="text-2xl font-extrabold text-brand-700">Whose photo is this?</div>
       </div>
 
       <PhotoCarousel photos={round.photos} />
@@ -105,9 +95,20 @@ export default function Reveal({ room, isHost }: Props) {
         </ul>
       </div>
 
-      <div className="text-center text-brand-600 font-medium">
-        {!reveal.finished && `Revealing next candidate... (${nextToReveal} left)`}
-      </div>
+      {!reveal.finished && (
+        <div className="mt-2">
+          {isHost ? (
+            <button
+              onClick={revealNext}
+              className="w-full bg-gradient-to-r from-party-orange to-party-pink text-white font-bold rounded-xl py-3 shadow active:scale-95 transition"
+            >
+              Reveal Next ({nextToReveal} left) ▶
+            </button>
+          ) : (
+            <p className="text-center text-brand-500">Waiting for host to reveal the next candidate...</p>
+          )}
+        </div>
+      )}
 
       {reveal.finished && (
         <div className="mt-2">
@@ -126,3 +127,4 @@ export default function Reveal({ room, isHost }: Props) {
     </div>
   );
 }
+
